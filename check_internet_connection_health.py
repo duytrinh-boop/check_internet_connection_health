@@ -40,21 +40,37 @@ def setup_logger(level):
 logger = setup_logger(logging.INFO)
 
 def ping_server(address):
+    last_state = None
     while True:
         try:
             subprocess.check_output(["ping", "-c", "1", address], timeout=10)
+            if last_state == 'down' or last_state is None:
+                logger.info({'details': f"Connection restored (via ping to {address})"})
+            last_state = 'up'
         except subprocess.CalledProcessError:
-            logger.info({'details': f"Ping check failed for {address}"})
+            if last_state == 'up' or last_state is None:
+                logger.info({'details': f"Connection lost (via ping to {address})"})
+            else:
+                logger.info({'details': f"Connection still down (via ping to {address})"})
+            last_state = 'down'
         time.sleep(sleep_time)
 
 def tcp_check(server_info):
+    last_state = None
     while True:
         try:
             with socket.create_connection(server_info, timeout=10):
-                pass
+                if last_state == 'down' or last_state is None:
+                    logger.info({'details': f"TCP connection established with {server_info[0]}"})
+                last_state = 'up'
         except OSError:
-            logger.info({'details': f"Failed to establish TCP connection with {server_info[0]}"})
+            if last_state == 'up' or last_state is None:
+                logger.info({'details': f"Failed to establish TCP connection with {server_info[0]}"})
+            else:
+                logger.info({'details': f"TCP connection still down with {server_info[0]}"})
+            last_state = 'down'
         time.sleep(sleep_time)
+
 
 servers_to_ping = ["8.8.8.8", "1.1.1.1", "9.9.9.9"]
 tcp_test_server = ("google.com", 80)
